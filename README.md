@@ -13,6 +13,7 @@ Works on Google, DuckDuckGo, Bing, Brave Search and Kagi.
 ## Development
 The source is strict TypeScript in `src/`; `static/` holds the manifest, settings page and icons.
 - `npm run build` type-checks, then bundles into `dist/`. It refuses to build if the types don't check.
+- `npm test` builds, then runs `tests/` against the built background worker with a fake browser and API.
 - `npm run watch` rebuilds on save (no type-check; run `npm run typecheck` alongside it).
 After a rebuild, click reload on the extension in `helium://extensions`.
 
@@ -28,6 +29,11 @@ After a rebuild, click reload on the extension in `helium://extensions`.
 
 ## Notes
 - Your key lives in `chrome.storage.local` on this machine and is only sent to api.anthropic.com.
+  That storage is locked to the extension's own pages; the script running in search pages can't read it.
+- To limit what a web page can cost you, overviews pause after 10 in a minute or 300 in 24 hours
+  (`RATE` in `src/background.ts`). Answers served from the cache don't count.
+- Search results are untrusted: the prompt marks them as data, and the card only ever links to http(s)
+  URLs taken from the results page.
 - Search engines change their markup; if the card shows up floating on the right instead of
   inline, update the `mounts` selectors for that engine in `src/content.ts`.
 - To add another Google country domain, add it to `matches` in `static/manifest.json`.

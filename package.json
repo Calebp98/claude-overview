@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && node build.mjs",
-    "watch": "node build.mjs --watch"
+    "watch": "node build.mjs --watch",
+    "test": "npm run build && node --test tests/"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.7",

@@ -1,6 +1,7 @@
 // Claude Overview: a quiet answer card above search results, labelled with the model that wrote it.
 import {
-  DEFAULT_MODEL, getLocal, sendRuntimeMessage, type OverviewEvent, type Source, type StartMessage
+  DEFAULT_MODEL, LIMITS, openOptions, requestPageSettings, safeHttpUrl,
+  type OverviewEvent, type Source, type StartMessage
 } from "./shared";
 
 declare global {
@@ -8,7 +9,9 @@ declare global {
 }
 
 (() => {
-  if (window.__claudeOverview) return;
+  // Own-property check: a page element with id="__claudeOverview" shows up on window via
+  // named access (from the prototype chain), which a plain truthiness check would mistake for us.
+  if (Object.hasOwn(window, "__claudeOverview")) return;
   window.__claudeOverview = true;
 
   // ---------- engines ----------
@@ -77,7 +80,8 @@ declare global {
   const current = (): { engine: Engine; query: string } | null => {
     const u = new URL(location.href);
     const engine = ENGINES.find((x) => x.test(u));
-    const query = engine ? (u.searchParams.get(engine.param) ?? "").trim() : "";
+    // Collapsed to one line and capped, so a crafted link can't send a huge or multi-line prompt.
+    const query = engine ? (u.searchParams.get(engine.param) ?? "").replace(/\s+/g, " ").trim().slice(0, LIMITS.query) : "";
     return engine && query ? { engine, query } : null;
   };
 
@@ -110,20 +114,20 @@ declare global {
       const key = url.origin + url.pathname;
       if (seen.has(key)) continue;
       const title = (heading.innerText || a.innerText || "").trim().replace(/\s+/g, " ");
-      if (title.length < 4) continue;
+      if (title.length < 4 || url.href.length > LIMITS.url) continue;
       seen.add(key);
 
       const block = a.closest<HTMLElement>(BLOCK) ?? a.parentElement?.parentElement?.parentElement ?? a;
       const text = (block.innerText || "").replace(/\s+/g, " ").trim();
-      const snippet = text.replace(title, "").trim().slice(0, 320);
+      const snippet = text.replace(title, "").trim().slice(0, LIMITS.snippet);
       // Reuse the favicon the search page already shows, so no extra third-party requests.
       const img = [...block.querySelectorAll("img")].find((i) =>
         /favicon|\.ico|ip3|s2\/fav|faviconV2|imgs\.search\.brave/.test(i.src) || (i.width && i.width <= 32));
       out.push({
-        title: title.slice(0, 140),
+        title: title.slice(0, LIMITS.title),
         url: url.href,
         host: url.hostname.replace(/^www\./, ""),
-        icon: img?.src.startsWith("http") ? img.src : "",
+        icon: img && img.src.length <= LIMITS.url ? safeHttpUrl(img.src) ?? "" : "",
         snippet
       });
     }
@@ -151,7 +155,8 @@ declare global {
     return s.replace(/\s?\[(\d+(?:\s*,\s*\d+)*)\]/g, (_: string, nums: string) =>
       nums.split(/\s*,\s*/).map((n) => {
         const src = sources[+n - 1];
-        return src ? `<a class="cite" href="${esc(src.url)}" title="${esc(src.host)}" target="_blank" rel="noopener">${n}</a>` : "";
+        const href = src && safeHttpUrl(src.url);
+        return src && href ? `<a class="cite" href="${esc(href)}" title="${esc(src.host)}" target="_blank" rel="noopener">${n}</a>` : "";
       }).join("")
     );
   }
@@ -301,7 +306,8 @@ declare global {
     if (parentIsList) { h.style.listStyle = "none"; h.appendChild(card); }
     h.id = "claude-overview-host";
     host = h;
-    root = card.attachShadow({ mode: "open" });
+    // Closed, so the page's own scripts can't reach in to read the card or click its buttons.
+    root = card.attachShadow({ mode: "closed" });
     root.innerHTML = `<style>${CSS}</style>
       <section class="card" aria-live="polite">
         <div class="head">${ICON.mark}<div class="model"></div>
@@ -326,7 +332,8 @@ declare global {
     }
 
     $(".close").onclick = () => { dismissed = true; port?.disconnect(); h.remove(); };
-    $(".regen").onclick = () => void run(true);
+    // Regenerating costs money; only act on real clicks, not ones a page script dispatched.
+    $(".regen").onclick = (e) => { if (e.isTrusted) void run(true); };
     $(".more").onclick = () => {
       const open = !$(".body").classList.toggle("clamped");
       const more = $(".more");
@@ -353,10 +360,16 @@ declare global {
     if (!state) return;
     const box = $(".sources");
     box.hidden = !state.sources.length;
-    box.innerHTML = state.sources.map((s, i) => `
-      <a class="src" href="${esc(s.url)}" title="${esc(s.title)}" target="_blank" rel="noopener">
-        ${s.icon ? `<img src="${esc(s.icon)}" alt="" referrerpolicy="no-referrer">` : `<span class="ph">${esc(s.host.charAt(0).toUpperCase())}</span>`}
-        <span class="h">${esc(s.host)}</span><span class="n">${i + 1}</span></a>`).join("");
+    // Sources may come back from the cache, so their URLs are checked again here, not just when scraped.
+    box.innerHTML = state.sources.map((s, i) => {
+      const href = safeHttpUrl(s.url);
+      const icon = s.icon && safeHttpUrl(s.icon);
+      if (!href) return "";
+      return `
+      <a class="src" href="${esc(href)}" title="${esc(s.title)}" target="_blank" rel="noopener">
+        ${icon ? `<img src="${esc(icon)}" alt="" referrerpolicy="no-referrer">` : `<span class="ph">${esc(s.host.charAt(0).toUpperCase())}</span>`}
+        <span class="h">${esc(s.host)}</span><span class="n">${i + 1}</span></a>`;
+    }).join("");
     box.querySelectorAll("img").forEach((img) => img.addEventListener("error", () => {
       const ph = document.createElement("span"); ph.className = "ph";
       ph.textContent = img.closest(".src")?.querySelector(".h")?.textContent?.charAt(0).toUpperCase() ?? "";
@@ -381,7 +394,7 @@ declare global {
   // `html` must already be escaped; callers build it from fixed strings and esc().
   function showNote(html: string): void {
     $(".text").innerHTML = `<p class="note">${html}</p>`;
-    root?.querySelector(".text .open-opts")?.addEventListener("click", () => sendRuntimeMessage({ type: "openOptions" }));
+    root?.querySelector(".text .open-opts")?.addEventListener("click", openOptions);
   }
 
   async function run(force = false): Promise<void> {
@@ -389,7 +402,7 @@ declare global {
     if (!cur) return;
     dismissed = false;
     port?.disconnect();
-    const { model } = await getLocal("model");
+    const { model } = await requestPageSettings();
 
     // Wait until the results (and so our mount point) exist before drawing anything.
     await waitFor(() => findSpot(cur.engine));
@@ -397,7 +410,7 @@ declare global {
     const body = $(".body");
     body.classList.remove("clamped"); delete body.dataset["touched"];
 
-    const st: State = { text: "", sources: [], query: cur.query, model: model || DEFAULT_MODEL, done: false, error: "" };
+    const st: State = { text: "", sources: [], query: cur.query, model, done: false, error: "" };
     state = st;
     setModel(st.model);
     skeleton();
@@ -438,19 +451,19 @@ declare global {
   async function showClickToGenerate(): Promise<void> {
     const cur = current();
     if (!cur) return;
-    const { model } = await getLocal("model");
+    const { model } = await requestPageSettings();
     await waitFor(() => findSpot(cur.engine));
     mount(cur.engine);
-    setModel(model || DEFAULT_MODEL);
+    setModel(model);
     showNote("Ask for a short answer to this search, with sources.");
     $(".foot").insertAdjacentHTML("afterbegin", `<button class="go">Generate answer</button>`);
     const go = $(".go");
-    go.onclick = () => { go.remove(); void run(); };
+    go.onclick = (e) => { if (!e.isTrusted) return; go.remove(); void run(); };
   }
 
   async function start(): Promise<void> {
     if (!current()) return;
-    const { mode } = await getLocal("mode");
+    const { mode } = await requestPageSettings();
     if (mode === "click") await showClickToGenerate(); else await run();
   }
 
