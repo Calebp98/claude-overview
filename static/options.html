@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claude Overview settings</title>
+<style>
+  :root { --bg:#fff; --fg:#1f1f1f; --muted:#5e5e5e; --line:#dadce0; --accent:#0b57d0; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#1f1f1f; --fg:#e3e3e3; --muted:#a8a8a8; --line:#444; --accent:#a8c7fa; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 "Google Sans Text", Roboto, system-ui, sans-serif; }
+  main { max-width: 520px; margin: 56px auto; padding: 0 24px; }
+  h1 { font-size: 22px; font-weight: 500; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 28px; }
+  label { display:block; font-weight:500; margin: 20px 0 6px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  input, select { width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+    background:transparent; color:inherit; font:inherit; }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .radio { display:flex; gap:10px; align-items:flex-start; font-weight:400; margin:8px 0; }
+  .radio input { width:auto; margin-top:5px; }
+  button { margin-top: 28px; padding: 10px 22px; border: 0; border-radius: 20px; background: var(--accent); color: var(--bg);
+    font: inherit; font-weight: 500; cursor: pointer; }
+  #status { margin-left: 12px; color: var(--muted); }
+  h2 { font-size: 17px; font-weight: 500; margin: 48px 0 4px; padding-top: 28px; border-top: 1px solid var(--line); }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0 0; }
+  .tile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .tile .k { color: var(--muted); font-size: 13px; }
+  .tile .v { font-size: 22px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile .s { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 7px 0 7px 12px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; padding-left: 0; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); margin-top: 18px; }
+  @media (max-width: 480px) { .tiles { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Claude Overview</h1>
+  <p class="lede">Shows a short AI Overview from Claude above your search results on Google, DuckDuckGo, Bing, Brave Search and Kagi.</p>
+
+  <label for="key">Anthropic API key</label>
+  <input id="key" type="password" autocomplete="off" placeholder="sk-ant-…">
+  <p class="hint">Stored only in this browser. Get one at console.anthropic.com. Each overview is one Haiku request.</p>
+
+  <label for="model">Model</label>
+  <input id="model" type="text" spellcheck="false">
+  <p class="hint">Default is claude-haiku-5-5. Change this if you want a different model string.</p>
+
+  <label>When to generate</label>
+  <label class="radio"><input type="radio" name="mode" value="auto"> <span>Automatically on every search</span></label>
+  <label class="radio"><input type="radio" name="mode" value="click"> <span>Only when I click "Generate overview" (saves API cost)</span></label>
+
+  <button id="save">Save settings</button><span id="status" role="status"></span>
+
+  <h2>Usage</h2>
+  <p class="hint" id="usage-since">No overviews generated yet.</p>
+  <div class="tiles">
+    <div class="tile"><div class="k">Today</div><div class="v" id="u-today">$0.00</div><div class="s" id="u-today-n">0 overviews</div></div>
+    <div class="tile"><div class="k">Last 30 days</div><div class="v" id="u-30">$0.00</div><div class="s" id="u-30-n">0 overviews</div></div>
+    <div class="tile"><div class="k">All time</div><div class="v" id="u-all">$0.00</div><div class="s" id="u-all-n">0 overviews</div></div>
+  </div>
+  <table id="u-models" hidden>
+    <thead><tr><th>Model</th><th>Overviews</th><th>Input tokens</th><th>Output tokens</th><th>Cost</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <p class="hint" id="u-notes"></p>
+  <button id="reset-usage" class="secondary">Reset usage</button>
+</main>
+<script src="options.js"></script>
+</body>
+</html>

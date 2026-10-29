@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Overview",
+  "version": "1.2.0",
+  "description": "A short answer above your search results, written by Claude and labelled with the model that wrote it.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://api.anthropic.com/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Claude Overview settings", "default_icon": "icons/icon128.png" },
+  "icons": { "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.google.com/search*",
+        "https://www.google.co.uk/search*",
+        "https://www.google.ca/search*",
+        "https://www.google.com.au/search*",
+        "https://www.google.de/search*",
+        "https://www.google.fr/search*",
+        "https://duckduckgo.com/*",
+        "https://www.bing.com/search*",
+        "https://search.brave.com/search*",
+        "https://kagi.com/search*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
